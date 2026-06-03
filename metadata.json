@@ -1,0 +1,6 @@
+{
+  "name": "Teacher Attendance Tracker",
+  "description": "ប្រព័ន្ធគ្រប់គ្រងសន្លឹកវត្តមាន និងចុះហត្ថលេខាគ្រូបង្រៀន (Teacher Attendance and Signature Tracking System) with teacher directory, shift selection, canvas signature pads, and attendance reports.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

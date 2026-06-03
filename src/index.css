@@ -1,0 +1,18 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Kantumruy+Pro:ital,wght@0,300..700;1,300..700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Kantumruy Pro", "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+  
+  --color-sky-55: #f0f9ff;
+  --color-slate-550: #64748b;
+  --color-slate-750: #1e293b;
+  --color-slate-850: #0f172a;
+}
+
+/* Custom global touch action prevention for drawing signature smoothly */
+.TouchAction-none {
+  touch-action: none;
+}
+
