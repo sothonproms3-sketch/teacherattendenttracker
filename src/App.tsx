@@ -85,6 +85,17 @@ const getMockRecords = (teachers: Teacher[]): AttendanceRecord[] => {
 
 export default function App() {
   // -------------------------------------------------------------
+  // Khmer OS Font Selector State
+  // -------------------------------------------------------------
+  const [selectedFont, setSelectedFont] = useState<string>(() => {
+    return localStorage.getItem('teacher_attendance_font') || 'font-khmer-os-battambang';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('teacher_attendance_font', selectedFont);
+  }, [selectedFont]);
+
+  // -------------------------------------------------------------
   // Dynamic Live Clock & Date States
   // -------------------------------------------------------------
   const [liveTime, setLiveTime] = useState<Date>(new Date());
@@ -368,7 +379,7 @@ export default function App() {
   };
 
   return (
-    <div id="app-root-pane" className="min-h-screen bg-slate-50 text-slate-800 font-sans antialiased pb-20">
+    <div id="app-root-pane" className={`min-h-screen bg-slate-50 text-slate-800 antialiased pb-20 transition-all duration-300 ${selectedFont}`}>
       
       {/* -------------------------------------------------------------
           Header Bar: Clean & High-Contrast
@@ -380,7 +391,7 @@ export default function App() {
               <Award className="w-7 h-7" />
             </div>
             <div>
-              <h1 id="app-title-khmer" className="text-xl sm:text-2xl font-bold tracking-tight text-white font-sans">
+              <h1 id="app-title-khmer" className="text-xl sm:text-2xl font-bold tracking-tight text-white">
                 ប្រព័ន្ធគ្រប់គ្រងវត្តមាន និងចុះហត្ថលេខាគ្រូបង្រៀន
               </h1>
               <p id="app-title-english" className="text-xs text-indigo-300 font-mono tracking-wider uppercase mt-0.5">
@@ -389,15 +400,35 @@ export default function App() {
             </div>
           </div>
 
-          {/* Dynamic Live Clock Workspace widget */}
-          <div id="header-clock" className="flex items-center gap-3 bg-slate-800/80 px-4 py-2 rounded-lg border border-slate-750 self-start md:self-auto">
-            <Clock className="w-5 h-5 text-indigo-400 animate-pulse" />
-            <div className="text-right">
-              <div id="live-time-display" className="text-base sm:text-lg font-mono font-bold text-amber-300">
-                {getFormatTime(liveTime)}
-              </div>
-              <div id="live-date-display" className="text-[10px] text-slate-300 font-medium">
-                {getKhmerDateString(liveTime)}
+          <div id="header-right-controls" className="flex flex-wrap items-center gap-3 self-start md:self-auto">
+            {/* ជ្រើសរើស Font Khmer OS */}
+            <div id="header-font-selector" className="flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700 text-xs">
+              <span className="text-indigo-300 font-bold hidden xl:inline">អក្សរយូនីកូដ / Font Unicode:</span>
+              <select
+                id="font-select-picker"
+                value={selectedFont}
+                onChange={(e) => setSelectedFont(e.target.value)}
+                className="bg-slate-950 text-white font-semibold text-xs py-1 px-2 rounded border border-indigo-500/30 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+              >
+                <option value="font-khmer-os-battambang" className="font-khmer-os-battambang">Khmer OS Battambang (លំនាំដើម)</option>
+                <option value="font-khmer-os-siemreap" className="font-khmer-os-siemreap">Khmer OS Siemreap</option>
+                <option value="font-khmer-os-classic" className="font-khmer-os-classic">Khmer OS Classic (បុរាណ)</option>
+                <option value="font-khmer-os-metalchrieng" className="font-khmer-os-metalchrieng">Khmer OS Metal Chrieng (ជ្រៀង)</option>
+                <option value="font-khmer-os-nokora" className="font-khmer-os-nokora">Khmer OS Siemreap Serif (Nokora)</option>
+                <option value="font-khmer-modern-kantumruy" className="font-khmer-modern-kantumruy">Kantumruy Pro (Modern)</option>
+              </select>
+            </div>
+
+            {/* Dynamic Live Clock Workspace widget */}
+            <div id="header-clock" className="flex items-center gap-3 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700">
+              <Clock className="w-4 h-4 text-indigo-400 animate-pulse" />
+              <div className="text-right">
+                <div id="live-time-display" className="text-sm font-mono font-bold text-amber-300 leading-none">
+                  {getFormatTime(liveTime)}
+                </div>
+                <div id="live-date-display" className="text-[9px] text-slate-300 font-medium mt-0.5 whitespace-nowrap">
+                  {getKhmerDateString(liveTime)}
+                </div>
               </div>
             </div>
           </div>

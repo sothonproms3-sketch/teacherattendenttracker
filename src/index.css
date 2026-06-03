@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Kantumruy+Pro:ital,wght@0,300..700;1,300..700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Kantumruy+Pro:wght@400;550;700&family=Battambang:wght@400;700&family=Siemreap&family=Khmer&family=Hanuman:wght@400;700&family=Nokora:wght@400;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -11,8 +11,34 @@
   --color-slate-850: #0f172a;
 }
 
+/* Custom font styles to simulate traditional Khmer OS fonts */
+.font-khmer-os-battambang {
+  font-family: 'Battambang', sans-serif !important;
+}
+
+.font-khmer-os-siemreap {
+  font-family: 'Siemreap', sans-serif !important;
+}
+
+.font-khmer-os-classic {
+  font-family: 'Khmer', sans-serif !important;
+}
+
+.font-khmer-os-metalchrieng {
+  font-family: 'Hanuman', serif !important;
+}
+
+.font-khmer-os-nokora {
+  font-family: 'Nokora', serif !important;
+}
+
+.font-khmer-modern-kantumruy {
+  font-family: 'Kantumruy Pro', sans-serif !important;
+}
+
 /* Custom global touch action prevention for drawing signature smoothly */
 .TouchAction-none {
   touch-action: none;
 }
+
 
