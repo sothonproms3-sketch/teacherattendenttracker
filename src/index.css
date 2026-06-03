@@ -41,4 +41,81 @@
   touch-action: none;
 }
 
+/* Print Stylesheet for flawless attendance sheets */
+@media print {
+  /* Hide unnecessary UI elements */
+  #app-header,
+  #header-container,
+  #statistics-summary,
+  #logger-column,
+  #filter-controls-pnl,
+  #report-actions,
+  #clear-signature-pad-btn,
+  #header-right-controls,
+  .no-print {
+    display: none !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body, html {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    font-size: 11pt !important;
+  }
+
+  #app-main-content {
+    margin-top: 0 !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  #interactive-layout {
+    display: block !important;
+  }
+
+  #report-column {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  #card-attendance-reports {
+    border: none !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Optimize high contrast table elements for clear paper layout */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  th {
+    background-color: #f1f5f9 !important;
+    color: #000055 !important;
+    font-weight: bold !important;
+    border: 1px solid #94a3b8 !important;
+    padding: 8px !important;
+  }
+
+  td {
+    border: 1px solid #cbd5e1 !important;
+    color: #000000 !important;
+    padding: 8px !important;
+  }
+
+  /* Make sure signature images print nicely */
+  img {
+    max-height: 48px !important;
+    width: auto !important;
+    filter: contrast(120%) !important;
+  }
+}
+
 

@@ -360,19 +360,107 @@ export default function App() {
   };
 
   const handleExportCSV = () => {
-    // Basic CSV composition
-    const headers = 'Number,Teacher ID,Name,Department,Shift,Check-In Time,Check-Out Time\n';
+    // Basic CSV composition with BOM for correct Khmer OS Font encoding
+    const headers = 'ល.រ (No.),លេខសម្គាល់គ្រូ (Teacher ID),ឈ្មោះគ្រូ (Name),ដេប៉ាតឺម៉ង់ (Department),វេនបង្រៀន (Shift),ម៉ោងចូល (Check-In Time),ម៉ោងចេញ (Check-Out Time)\n';
     const csvContent = filteredRecords.map((rec, index) => {
       const checkInLocal = new Date(rec.check_in_time).toLocaleString('km-KH');
       const checkOutLocal = rec.check_out_time ? new Date(rec.check_out_time).toLocaleString('km-KH') : 'កំពុងបង្រៀន (Active)';
       return `"${index + 1}","${rec.teacher_id}","${rec.teacher_name}","${rec.department}","${rec.shift}","${checkInLocal}","${checkOutLocal}"`;
     }).join('\n');
 
-    const blob = new Blob([headers + csvContent], { type: 'text/csv;charset=utf-8;' });
+    // Prepend UTF-8 BOM \uFEFF so Excel identifies Khmer font symbols correctly
+    const blob = new Blob(['\uFEFF' + headers + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `Teacher_Attendance_Report_${new Date().toLocaleDateString()}.csv`);
+    link.setAttribute('download', `Teacher_Attendance_Report_${filterShift.replace(/\s+/g, '_')}_${filterDate.replace(/\s+/g, '_')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportExcel = () => {
+    let excelTemplate = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta http-equiv="content-type" content="text/plain; charset=UTF-8"/>
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>Teacher Attendance</x:Name>
+                <x:WorksheetOptions>
+                  <x:DisplayGridlines/>
+                </x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <style>
+          table { border-collapse: collapse; width: 100%; border: 1px solid #cbd5e1; }
+          th { background-color: #1e3a8a; color: #ffffff; font-weight: bold; border: 1px solid #cbd5e1; padding: 10px; font-family: Arial, sans-serif; text-align: left; }
+          td { border: 1px solid #cbd5e1; padding: 10px; font-family: Arial, sans-serif; font-size: 13px; }
+          .title-khmer { font-size: 20px; font-weight: bold; text-align: center; color: #0f172a; margin-bottom: 5px; }
+          .title-english { font-size: 12px; text-align: center; color: #64748b; margin-bottom: 25px; text-transform: uppercase; letter-spacing: 1px; }
+          .meta-info { font-size: 12px; font-weight: bold; color: #334155; margin-bottom: 15px; border: none !important; }
+        </style>
+      </head>
+      <body>
+        <div class="title-khmer">របាយការណ៍សន្លឹកវត្តមាន និងចុះហត្ថលេខាគ្រូបង្រៀន</div>
+        <div class="title-english">Teacher Attendance and Signature Tracking Sheet</div>
+        
+        <table class="meta-info">
+          <tr>
+            <td style="border: none !important;"><strong>កាលបរិច្ឆេទរបាយការណ៍ / Date Range:</strong> ${filterDate}</td>
+            <td style="border: none !important;"><strong>វេនបង្រៀនដែលជ្រើសរើស / Shift Filter:</strong> ${filterShift}</td>
+          </tr>
+        </table>
+
+        <table>
+          <thead>
+            <tr>
+              <th>ល.រ (No.)</th>
+              <th>លេខសម្គាល់គ្រូ (Teacher ID)</th>
+              <th>ឈ្មោះលោកគ្រូ-អ្នកគ្រូ (Teacher Name)</th>
+              <th>ដេប៉ាតឺម៉ង់ (Department)</th>
+              <th>វេនបង្រៀន (Shift)</th>
+              <th>ម៉ោងចូល (Check-In)</th>
+              <th>ម៉ោងចេញ (Check-Out)</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    filteredRecords.forEach((rec, index) => {
+      const checkInLocal = new Date(rec.check_in_time).toLocaleString('km-KH');
+      const checkOutLocal = rec.check_out_time ? new Date(rec.check_out_time).toLocaleString('km-KH') : 'កំពុងបង្រៀន (Active)';
+      excelTemplate += `
+        <tr>
+          <td>${index + 1}</td>
+          <td>${rec.teacher_id}</td>
+          <td>${rec.teacher_name}</td>
+          <td>${rec.department}</td>
+          <td>${rec.shift}</td>
+          <td>${checkInLocal}</td>
+          <td>${checkOutLocal}</td>
+        </tr>
+      `;
+    });
+
+    excelTemplate += `
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([excelTemplate], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Teacher_Attendance_Report_${filterShift.replace(/\s+/g, '_')}_${filterDate.replace(/\s+/g, '_')}.xls`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -756,24 +844,36 @@ export default function App() {
                 </div>
 
                 {/* Print and Export Buttons */}
-                <div id="report-actions" className="flex items-center gap-2 self-start sm:self-auto">
+                <div id="report-actions" className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
                   <button
                     id="export-csv-btn"
                     type="button"
                     onClick={handleExportCSV}
-                    className="flex items-center gap-1 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 py-1.5 px-3 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                    className="flex items-center gap-1.5 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 py-1.5 px-3 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                    title="Export currently filtered list to CSV (Khmer font compatible)"
                   >
-                    <FileDown className="w-3.5 h-3.5" />
-                    Export CSV
+                    <FileDown className="w-3.5 h-3.5 text-blue-600" />
+                    <span>CSV (BOM)</span>
+                  </button>
+                  <button
+                    id="export-excel-btn"
+                    type="button"
+                    onClick={handleExportExcel}
+                    className="flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 py-1.5 px-3 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                    title="Export currently filtered list to Excel spreadsheet"
+                  >
+                    <FileDown className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>Excel (.xls)</span>
                   </button>
                   <button
                     id="print-btn"
                     type="button"
                     onClick={handlePrint}
-                    className="flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white py-1.5 px-3 rounded-lg text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+                    className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white py-1.5 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer shadow-xs hover:shadow-md"
+                    title="Print report (optimized print style sheet)"
                   >
                     <Printer className="w-3.5 h-3.5" />
-                    ព្រីន (Print)
+                    <span>ព្រីន (Print)</span>
                   </button>
                 </div>
               </div>
@@ -828,6 +928,19 @@ export default function App() {
                   </div>
                 </div>
 
+              </div>
+
+              {/* Dynamic Filter Status Banner */}
+              <div id="filter-banner" className="bg-indigo-50/70 border-b border-indigo-100/50 px-6 py-3 flex flex-wrap items-center justify-between gap-2 text-xs text-indigo-950 font-semibold self-stretch">
+                <div className="flex items-center gap-1.5 font-sans">
+                  <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></span>
+                  <span>កំពុងបង្ហាញ៖ <strong className="text-indigo-800">{filterDate}</strong></span>
+                  <span className="text-slate-300">|</span>
+                  <span>វេនបង្រៀន៖ <strong className="text-indigo-800">{filterShift}</strong></span>
+                </div>
+                <div className="text-[11px] text-slate-500 font-bold">
+                  រកឃើញទិន្នន័យ៖ <span className="text-indigo-600 font-bold">{toKhmerNum(filteredRecords.length)} កត់ត្រា (Records)</span>
+                </div>
               </div>
 
               {/* THE REPORT SPREADSHEET TABLE */}
