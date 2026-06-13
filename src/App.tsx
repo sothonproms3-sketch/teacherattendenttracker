@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   UserPlus, 
   Clock, 
@@ -12,13 +12,15 @@ import {
   Users, 
   Search, 
   FileDown, 
+  FileText,
   Printer, 
   Trash2, 
   LogOut, 
   LogIn, 
   BookOpen, 
   Award,
-  Filter
+  Filter,
+  AlertTriangle
 } from 'lucide-react';
 import { Teacher, AttendanceRecord } from './types';
 import SignaturePad from './components/SignaturePad';
@@ -96,6 +98,17 @@ export default function App() {
   }, [selectedFont]);
 
   // -------------------------------------------------------------
+  // Khmer OS Font Sizing State
+  // -------------------------------------------------------------
+  const [selectedFontSize, setSelectedFontSize] = useState<string>(() => {
+    return localStorage.getItem('teacher_attendance_font_size') || 'khmer-size-12';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('teacher_attendance_font_size', selectedFontSize);
+  }, [selectedFontSize]);
+
+  // -------------------------------------------------------------
   // Dynamic Live Clock & Date States
   // -------------------------------------------------------------
   const [liveTime, setLiveTime] = useState<Date>(new Date());
@@ -115,6 +128,27 @@ export default function App() {
       'កក្កដា', 'សីហា', 'កញ្ញា', 'តុលា', 'វិច្ឆិកា', 'ធ្នូ'
     ];
     return `ថ្ងៃ${days[date.getDay()]} ទី${date.getDate()} ខែ${months[date.getMonth()]} ឆ្នាំ${date.getFullYear()}`;
+  };
+
+  // Format Custom YYYY-MM-DD strings to beautiful Khmer dates
+  const getKhmerDateStringForCustom = (dateStr: string) => {
+    if (!dateStr) return '';
+    try {
+      const parts = dateStr.split('-');
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      
+      const days = ['អាទិត្យ', 'ច័ន្ទ', 'អង្គារ', 'ពុធ', 'ព្រហស្បតិ៍', 'សុក្រ', 'សៅរ៍'];
+      const months = [
+        'មករា', 'កុម្ភៈ', 'មីនា', 'មេសា', 'ឧសភា', 'មិថុនា', 
+        'កក្កដា', 'សីហា', 'កញ្ញា', 'តុលា', 'វិច្ឆិកា', 'ធ្នូ'
+      ];
+      const d = new Date(year, month, day);
+      return `ថ្ងៃ${days[d.getDay()]} ទី${toKhmerNum(day)} ខែ${months[month]} ឆ្នាំ${toKhmerNum(year)}`;
+    } catch {
+      return dateStr;
+    }
   };
 
   // Convert Gregorian system number to Khmer number
@@ -157,6 +191,51 @@ export default function App() {
     localStorage.setItem(RECORDS_STORAGE_KEY, JSON.stringify(records));
   }, [records]);
 
+  // Maintain refs for teachers and records to avoid stale state in periodic ticks or timers
+  const teachersRef = useRef(teachers);
+  const recordsRef = useRef(records);
+
+  useEffect(() => {
+    teachersRef.current = teachers;
+  }, [teachers]);
+
+  useEffect(() => {
+    recordsRef.current = records;
+  }, [records]);
+
+  // Automatic Daily Backup at 9:00 PM (21:00) if active in tab
+  useEffect(() => {
+    const hours = liveTime.getHours();
+    const minutes = liveTime.getMinutes();
+    
+    if (hours === 21 && minutes === 0) {
+      const todayStr = liveTime.toDateString();
+      const lastBackup = localStorage.getItem('last_auto_backup_date');
+      
+      if (lastBackup !== todayStr) {
+        localStorage.setItem('last_auto_backup_date', todayStr);
+        
+        // Trigger auto-backup download
+        const backupData = {
+          backup_timestamp: new Date().toISOString(),
+          teachers: teachersRef.current,
+          records: recordsRef.current
+        };
+        const jsonStr = JSON.stringify(backupData, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        const dateFormatted = new Date().toISOString().split('T')[0];
+        link.download = `Teacher_Attendance_Backup_${dateFormatted}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
+    }
+  }, [liveTime]);
+
   // -------------------------------------------------------------
   // Form States & State Management
   // -------------------------------------------------------------
@@ -173,11 +252,34 @@ export default function App() {
   const [attendanceError, setAttendanceError] = useState('');
   const [attendanceSuccess, setAttendanceSuccess] = useState('');
   const [sigPadKey, setSigPadKey] = useState(0); // To force re-render/reset signature pad
+  const [showPdfGuide, setShowPdfGuide] = useState(false);
+
+  // Tooltip state for Teacher List hover details
+  const [hoveredTeacher, setHoveredTeacher] = useState<Teacher | null>(null);
+  const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 });
 
   // Search & Filter state for Report Table
   const [searchQuery, setSearchQuery] = useState('');
   const [filterShift, setFilterShift] = useState('ទាំងអស់ (All)');
   const [filterDate, setFilterDate] = useState('ថ្ងៃនេះ (Today)');
+  const [customFilterDate, setCustomFilterDate] = useState<string>(() => {
+    const todayObj = new Date();
+    const year = todayObj.getFullYear();
+    const month = String(todayObj.getMonth() + 1).padStart(2, '0');
+    const day = String(todayObj.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
+
+  // Dynamic descriptive date label for banners and reports
+  const getDisplayDateLabel = () => {
+    if (filterDate === 'ថ្ងៃនេះ (Today)') {
+      return 'ថ្ងៃនេះ (Today)';
+    } else if (filterDate === 'ទាំងអស់ (All)') {
+      return 'ប្រវត្តិសរុប (All History)';
+    } else {
+      return getKhmerDateStringForCustom(customFilterDate) || customFilterDate;
+    }
+  };
 
   // Selected details for Active Checked-In status detection
   const selectedTeacherRecord = records.find(
@@ -323,6 +425,20 @@ export default function App() {
     }
   };
 
+  // Helper: retrieve teacher checkout/attendance statistics for hover popup
+  const getTeacherStats = (teacherId: string) => {
+    const tRecords = records.filter(r => r.teacher_id === teacherId);
+    const count = tRecords.length;
+    let lastDate = 'មិនធ្លាប់មានទិន្នន័យ (Never)';
+    if (count > 0) {
+      // Sort records descending to get the most recent one
+      const sorted = [...tRecords].sort((a, b) => new Date(b.check_in_time).getTime() - new Date(a.check_in_time).getTime());
+      const lastRecDate = new Date(sorted[0].check_in_time);
+      lastDate = getKhmerDateString(lastRecDate);
+    }
+    return { count, lastDate };
+  };
+
   // -------------------------------------------------------------
   // Statistics Calculations
   // -------------------------------------------------------------
@@ -349,6 +465,13 @@ export default function App() {
     let matchesDate = true;
     if (filterDate === 'ថ្ងៃនេះ (Today)') {
       matchesDate = new Date(rec.check_in_time).toDateString() === today;
+    } else if (filterDate === 'ជ្រើសរើសថ្ងៃ (Custom)') {
+      const recordLocal = new Date(rec.check_in_time);
+      const year = recordLocal.getFullYear();
+      const month = String(recordLocal.getMonth() + 1).padStart(2, '0');
+      const day = String(recordLocal.getDate()).padStart(2, '0');
+      const recDateStrStr = `${year}-${month}-${day}`;
+      matchesDate = recDateStrStr === customFilterDate;
     }
 
     return matchesSearch && matchesShift && matchesDate;
@@ -359,7 +482,16 @@ export default function App() {
     window.print();
   };
 
+  const handleExportPDF = () => {
+    setShowPdfGuide(true);
+    // Wait slightly to let the UI update and user read the header alert if they see it, then trigger native print
+    setTimeout(() => {
+      window.print();
+    }, 300);
+  };
+
   const handleExportCSV = () => {
+    const displayDate = getDisplayDateLabel();
     // Basic CSV composition with BOM for correct Khmer OS Font encoding
     const headers = 'ល.រ (No.),លេខសម្គាល់គ្រូ (Teacher ID),ឈ្មោះគ្រូ (Name),ដេប៉ាតឺម៉ង់ (Department),វេនបង្រៀន (Shift),ម៉ោងចូល (Check-In Time),ម៉ោងចេញ (Check-Out Time)\n';
     const csvContent = filteredRecords.map((rec, index) => {
@@ -373,13 +505,14 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `Teacher_Attendance_Report_${filterShift.replace(/\s+/g, '_')}_${filterDate.replace(/\s+/g, '_')}.csv`);
+    link.setAttribute('download', `Teacher_Attendance_Report_${filterShift.replace(/\s+/g, '_')}_${displayDate.replace(/\s+/g, '_')}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
   const handleExportExcel = () => {
+    const displayDate = getDisplayDateLabel();
     let excelTemplate = `
       <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
       <head>
@@ -413,7 +546,7 @@ export default function App() {
         
         <table class="meta-info">
           <tr>
-            <td style="border: none !important;"><strong>កាលបរិច្ឆេទរបាយការណ៍ / Date Range:</strong> ${filterDate}</td>
+            <td style="border: none !important;"><strong>កាលបរិច្ឆេទរបាយការណ៍ / Date Range:</strong> ${displayDate}</td>
             <td style="border: none !important;"><strong>វេនបង្រៀនដែលជ្រើសរើស / Shift Filter:</strong> ${filterShift}</td>
           </tr>
         </table>
@@ -428,6 +561,7 @@ export default function App() {
               <th>វេនបង្រៀន (Shift)</th>
               <th>ម៉ោងចូល (Check-In)</th>
               <th>ម៉ោងចេញ (Check-Out)</th>
+              <th>ហត្ថលេខា (Signature)</th>
             </tr>
           </thead>
           <tbody>
@@ -436,6 +570,7 @@ export default function App() {
     filteredRecords.forEach((rec, index) => {
       const checkInLocal = new Date(rec.check_in_time).toLocaleString('km-KH');
       const checkOutLocal = rec.check_out_time ? new Date(rec.check_out_time).toLocaleString('km-KH') : 'កំពុងបង្រៀន (Active)';
+      const sigImg = rec.signature ? `<img src="${rec.signature}" width="80" height="28" style="vertical-align: middle; object-fit: contain;" />` : 'គ្មានហត្ថលេខា (No)';
       excelTemplate += `
         <tr>
           <td>${index + 1}</td>
@@ -445,6 +580,7 @@ export default function App() {
           <td>${rec.shift}</td>
           <td>${checkInLocal}</td>
           <td>${checkOutLocal}</td>
+          <td style="text-align: center;">${sigImg}</td>
         </tr>
       `;
     });
@@ -460,14 +596,166 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `Teacher_Attendance_Report_${filterShift.replace(/\s+/g, '_')}_${filterDate.replace(/\s+/g, '_')}.xls`;
+    link.download = `Teacher_Attendance_Report_${filterShift.replace(/\s+/g, '_')}_${displayDate.replace(/\s+/g, '_')}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportWord = () => {
+    const displayDate = getDisplayDateLabel();
+    let wordTemplate = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta http-equiv="content-type" content="text/plain; charset=UTF-8"/>
+        <!--[if gte mso 9]>
+        <xml>
+          <w:WordDocument>
+            <w:View>Print</w:View>
+            <w:Zoom>100</w:Zoom>
+            <w:DoNotOptimizeForBrowser/>
+          </w:WordDocument>
+        </xml>
+        <![endif]-->
+        <style>
+          @page {
+            size: A4 portrait;
+            margin: 1in 1in 1in 1in;
+          }
+          body {
+            font-family: 'Khmer OS Battambang', 'Segoe UI', Arial, sans-serif;
+            font-size: 11pt;
+            color: #000000;
+          }
+          .header-text {
+            text-align: center;
+            font-weight: bold;
+            font-size: 16pt;
+            color: #1e3a8a;
+          }
+          .sub-header-text {
+            text-align: center;
+            font-size: 10pt;
+            color: #64748b;
+            text-transform: uppercase;
+            font-weight: bold;
+          }
+          table { 
+            border-collapse: collapse; 
+            width: 100%; 
+            border: 1px solid #cbd5e1; 
+            margin-top: 20px;
+          }
+          th { 
+            background-color: #f1f5f9; 
+            color: #1e3a8a; 
+            font-weight: bold; 
+            border: 1px solid #94a3b8; 
+            padding: 8px 6px; 
+            font-size: 10pt;
+            text-align: left;
+          }
+          td { 
+            border: 1px solid #cbd5e1; 
+            padding: 8px 6px; 
+            font-size: 9.5pt;
+          }
+          .meta-info-table {
+            width: 100%;
+            margin-top: 15px;
+            font-size: 10pt;
+          }
+          .meta-info-table td {
+            border: none !important;
+            padding: 3px 0px;
+            font-weight: bold;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header-text">របាយការណ៍សន្លឹកវត្តមាន និងចុះហត្ថលេខាគ្រូបង្រៀន</div>
+        <div class="sub-header-text">Teacher Attendance & Signature Tracking Report</div>
+        
+        <table class="meta-info-table">
+          <tr>
+            <td style="width: 50%;">កាលបរិច្ឆេទរបាយការណ៍ / Date Range: ${displayDate}</td>
+            <td style="width: 50%; text-align: right;">វេនបង្រៀន / Shift: ${filterShift}</td>
+          </tr>
+        </table>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 5%;">ល.រ</th>
+              <th style="width: 13%;">លេខកូដគ្រូ</th>
+              <th style="width: 25%;">ឈ្មោះលោកគ្រូ-អ្នកគ្រូ</th>
+              <th style="width: 20%;">ដេប៉ាតឺម៉ង់</th>
+              <th style="width: 12%;">វេនបង្រៀន</th>
+              <th style="width: 13%;">ម៉ោងចូល</th>
+              <th style="width: 12%;">ហត្ថលេខា</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    filteredRecords.forEach((rec, index) => {
+      const checkInLocal = new Date(rec.check_in_time).toLocaleString('km-KH');
+      const sigImg = rec.signature ? `<img src="${rec.signature}" width="80" height="28" style="vertical-align: middle; object-fit: contain;" />` : 'គ្មានហត្ថលេខា';
+      wordTemplate += `
+        <tr>
+          <td>${index + 1}</td>
+          <td>${rec.teacher_id}</td>
+          <td>${rec.teacher_name}</td>
+          <td>${rec.department}</td>
+          <td>${rec.shift}</td>
+          <td>${checkInLocal}</td>
+          <td style="text-align: center;">${sigImg}</td>
+        </tr>
+      `;
+    });
+
+    wordTemplate += `
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([wordTemplate], { type: 'application/msword;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Teacher_Attendance_Report_${filterShift.replace(/\s+/g, '_')}_${displayDate.replace(/\s+/g, '_')}.doc`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportJSON = () => {
+    const displayDate = getDisplayDateLabel();
+    const cleanRecords = filteredRecords.map((rec) => ({
+      attendance_id: rec.id,
+      teacher_id: rec.teacher_id,
+      teacher_name: rec.teacher_name,
+      department: rec.department,
+      shift: rec.shift,
+      check_in_time: rec.check_in_time,
+      check_out_time: rec.check_out_time || null,
+      signature_data_url: rec.signature || null
+    }));
+    const dataStr = JSON.stringify(cleanRecords, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Teacher_Attendance_Report_${filterShift.replace(/\s+/g, '_')}_${displayDate.replace(/\s+/g, '_')}.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
   return (
-    <div id="app-root-pane" className={`min-h-screen bg-slate-50 text-slate-800 antialiased pb-20 transition-all duration-300 ${selectedFont}`}>
+    <div id="app-root-pane" className={`min-h-screen bg-slate-50 text-slate-800 antialiased pb-20 transition-all duration-300 ${selectedFont} ${selectedFontSize}`}>
       
       {/* -------------------------------------------------------------
           Header Bar: Clean & High-Contrast
@@ -504,6 +792,25 @@ export default function App() {
                 <option value="font-khmer-os-metalchrieng" className="font-khmer-os-metalchrieng">Khmer OS Metal Chrieng (ជ្រៀង)</option>
                 <option value="font-khmer-os-nokora" className="font-khmer-os-nokora">Khmer OS Siemreap Serif (Nokora)</option>
                 <option value="font-khmer-modern-kantumruy" className="font-khmer-modern-kantumruy">Kantumruy Pro (Modern)</option>
+              </select>
+            </div>
+
+            {/* ជ្រើសរើសទំហំអក្សរ / Font Size Selector */}
+            <div id="header-font-size-selector" className="flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700 text-xs">
+              <span className="text-indigo-300 font-bold hidden xl:inline">ទំហំអក្សរ / Size:</span>
+              <select
+                id="font-size-select-picker"
+                value={selectedFontSize}
+                onChange={(e) => setSelectedFontSize(e.target.value)}
+                className="bg-slate-950 text-white font-semibold text-xs py-1 px-1 rounded border border-indigo-500/30 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer text-center"
+              >
+                <option value="khmer-size-11">ទំហំ ១១ (11px)</option>
+                <option value="khmer-size-12">ទំហំ ១២ (12px - ស្ដង់ដារ)</option>
+                <option value="khmer-size-13">ទំហំ ១៣ (13px)</option>
+                <option value="khmer-size-14">ទំហំ ១៤ (14px)</option>
+                <option value="khmer-size-15">ទំហំ ១៥ (15px)</option>
+                <option value="khmer-size-16">ទំហំ ១៦ (16px)</option>
+                <option value="khmer-size-18">ទំហំ ១៨ (18px)</option>
               </select>
             </div>
 
@@ -801,15 +1108,31 @@ export default function App() {
               </form>
 
               {/* Collapsible/Direct table of Teacher Accounts */}
-              <div id="teacher-list-subpanel" className="px-6 pb-6 pt-2 border-t border-slate-100">
+              <div id="teacher-list-subpanel" className="px-6 pb-6 pt-2 border-t border-slate-100 relative">
                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center justify-between">
                   <span>បញ្ជីគ្រូទាំងអស់ ({toKhmerNum(teachers.length)})</span>
                 </h3>
                 <div id="teachers-mini-list" className="max-h-36 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-lg">
                   {teachers.map((tch) => (
-                    <div key={tch.teacher_id} className="p-2 sm:p-2.5 flex justify-between items-center bg-slate-50/50 hover:bg-slate-50">
+                    <div 
+                      key={tch.teacher_id} 
+                      className="p-2 sm:p-2.5 flex justify-between items-center bg-slate-50/50 hover:bg-slate-100 transition-colors cursor-pointer group"
+                      onMouseEnter={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const parentEl = document.getElementById('teacher-list-subpanel');
+                        const parentRect = parentEl?.getBoundingClientRect();
+                        if (parentRect) {
+                          setTooltipPos({
+                            top: rect.top - parentRect.top,
+                            left: rect.left - parentRect.left + (rect.width / 2)
+                          });
+                        }
+                        setHoveredTeacher(tch);
+                      }}
+                      onMouseLeave={() => setHoveredTeacher(null)}
+                    >
                       <div>
-                        <div className="text-xs font-bold text-slate-850">{tch.teacher_name}</div>
+                        <div className="text-xs font-bold text-slate-850 group-hover:text-indigo-600 transition-colors uppercase">{tch.teacher_name}</div>
                         <div className="text-[10px] text-slate-500">{tch.department} | {tch.teacher_id}</div>
                       </div>
                       <button
@@ -823,6 +1146,48 @@ export default function App() {
                     </div>
                   ))}
                 </div>
+
+                {/* Floating Tooltip Summary Card */}
+                {hoveredTeacher && (() => {
+                  const stats = getTeacherStats(hoveredTeacher.teacher_id);
+                  return (
+                    <div 
+                      className="absolute z-50 bg-slate-900 border border-slate-700/80 text-white rounded-xl shadow-xl p-3 pointer-events-none transition-all duration-150 ease-out flex flex-col gap-1.5 w-64 -translate-x-1/2 -translate-y-[calc(100%+8px)]"
+                      style={{ 
+                        top: `${tooltipPos.top}px`, 
+                        left: `${tooltipPos.left}px`,
+                        boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.45)'
+                      }}
+                    >
+                      {/* Triangle Pointer */}
+                      <div className="absolute bottom-[-5px] left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-slate-900 border-r border-b border-slate-700/80 rotate-45"></div>
+                      
+                      <div className="flex items-center gap-1.5 pb-1 border-b border-slate-800 text-[10px] font-bold text-indigo-400">
+                        <Award className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>ស្ថិតិនៃការកត់ត្រាវត្តមាន (Attendance Stats)</span>
+                      </div>
+                      
+                      <div className="flex flex-col gap-1.5 text-[10px] text-slate-300">
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-400 font-sans">គ្រូ (Teacher):</span>
+                          <span className="font-bold text-white font-sans">{hoveredTeacher.teacher_name}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-400 font-sans">វត្តមានសរុប (Total Present):</span>
+                          <span className="font-bold text-emerald-400 font-sans border border-emerald-900/40 bg-emerald-950/30 px-2 py-0.5 rounded">
+                            {toKhmerNum(stats.count)} ដង
+                          </span>
+                        </div>
+                        <div className="flex flex-col gap-0.5 mt-0.5 pt-1.5 border-t border-slate-800">
+                          <div className="text-slate-400 text-[9px] font-sans">វត្តមានចុងក្រោយ (Last Checked-In):</div>
+                          <div className="font-bold text-amber-300 text-[9.5px] leading-tight mt-0.5">
+                            {stats.lastDate}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
@@ -844,26 +1209,56 @@ export default function App() {
                 </div>
 
                 {/* Print and Export Buttons */}
-                <div id="report-actions" className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                <div id="report-actions" className="flex flex-wrap items-center gap-1.5 self-start sm:self-auto">
                   <button
                     id="export-csv-btn"
                     type="button"
                     onClick={handleExportCSV}
-                    className="flex items-center gap-1.5 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 py-1.5 px-3 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                    className="flex items-center gap-1.5 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
                     title="Export currently filtered list to CSV (Khmer font compatible)"
                   >
-                    <FileDown className="w-3.5 h-3.5 text-blue-600" />
+                    <FileDown className="w-3.5 h-3.5 text-slate-500" />
                     <span>CSV (BOM)</span>
                   </button>
                   <button
                     id="export-excel-btn"
                     type="button"
                     onClick={handleExportExcel}
-                    className="flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 py-1.5 px-3 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-                    title="Export currently filtered list to Excel spreadsheet"
+                    className="flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                    title="Export currently filtered list to Excel (.xls) spreadsheet"
                   >
                     <FileDown className="w-3.5 h-3.5 text-emerald-700" />
                     <span>Excel (.xls)</span>
+                  </button>
+                  <button
+                    id="export-json-btn"
+                    type="button"
+                    onClick={handleExportJSON}
+                    className="flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                    title="Export currently filtered list to JSON format for IT database integration"
+                  >
+                    <FileDown className="w-3.5 h-3.5 text-amber-600" />
+                    <span>JSON</span>
+                  </button>
+                  <button
+                    id="export-word-btn"
+                    type="button"
+                    onClick={handleExportWord}
+                    className="flex items-center gap-1.5 bg-sky-50 hover:bg-sky-100 border border-sky-300 text-sky-800 py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                    title="Export currently filtered list to Microsoft Word (.doc)"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-sky-700" />
+                    <span>Word (.doc)</span>
+                  </button>
+                  <button
+                    id="export-pdf-btn"
+                    type="button"
+                    onClick={handleExportPDF}
+                    className="flex items-center gap-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-800 py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                    title="Save currently filtered list as high-resolution PDF document"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-rose-700" />
+                    <span>PDF</span>
                   </button>
                   <button
                     id="print-btn"
@@ -877,6 +1272,29 @@ export default function App() {
                   </button>
                 </div>
               </div>
+
+              {/* PDF Guide Notice Alert (only shown transiently/interactively, hidden during print) */}
+              {showPdfGuide && (
+                <div id="pdf-guide-notice" className="no-print bg-amber-50 border-b border-amber-200 px-6 py-3 flex items-start gap-2.5 text-xs text-amber-950 font-medium">
+                  <div className="p-1 bg-amber-100 rounded text-amber-700 mt-0.5 animate-bounce">
+                    <AlertTriangle className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 font-sans font-bold">
+                    <p className="font-extrabold text-amber-900 mb-0.5">
+                      របៀបរក្សាទុកជា PDF / How to Save as PDF:
+                    </p>
+                    <p className="text-amber-800 leading-relaxed text-[11px]">
+                      👉 ក្នុងផ្ទាំងលោតព្រីន (Print menu) សូមជ្រើសរើស <strong>Destination (គោលដៅ)</strong> ទៅជា <strong>Save as PDF (រក្សាទុកជា PDF)</strong> រួចចុចប៊ូតុង <strong>Save</strong> ជាការស្រេច។ វិធីនេះធានាគំលាតទំព័រ និងអក្សរខ្មែរស្អាតឥតខ្ចោះ។
+                    </p>
+                  </div>
+                  <button 
+                    onClick={() => setShowPdfGuide(false)}
+                    className="text-amber-600 hover:text-amber-900 font-bold px-1.5 py-0.5 rounded text-[10px] bg-amber-100 border border-amber-200 hover:bg-amber-150 transition-colors cursor-pointer self-start"
+                  >
+                    បិទ (Close)
+                  </button>
+                </div>
+              )}
 
               {/* Search & Filter Controls */}
               <div id="filter-controls-pnl" className="bg-slate-100/50 p-4 border-b border-slate-205 flex flex-col md:flex-row gap-3">
@@ -914,17 +1332,28 @@ export default function App() {
                     </select>
                   </div>
 
-                  <div className="flex items-center gap-1 text-xs">
+                  <div className="flex items-center gap-1.5 text-xs flex-wrap">
                     <span className="text-slate-500 hidden sm:inline">កាលបរិច្ឆេទ:</span>
                     <select
                       id="date-filter-select"
                       value={filterDate}
                       onChange={(e) => setFilterDate(e.target.value)}
-                      className="bg-white border border-slate-300 rounded-lg py-1 px-2 text-xs focus:border-indigo-500"
+                      className="bg-white border border-slate-300 rounded-lg py-1 px-2 text-xs focus:border-indigo-500 font-semibold cursor-pointer"
                     >
                       <option value="ថ្ងៃនេះ (Today)">ថ្ងៃនេះ (Today)</option>
                       <option value="ទាំងអស់ (All)">ប្រវត្តិសរុប (All History)</option>
+                      <option value="ជ្រើសរើសថ្ងៃ (Custom)">ជ្រើសរើសថ្ងៃ (Custom Date...)</option>
                     </select>
+
+                    {filterDate === 'ជ្រើសរើសថ្ងៃ (Custom)' && (
+                      <input
+                        id="custom-date-filter-picker"
+                        type="date"
+                        value={customFilterDate}
+                        onChange={(e) => setCustomFilterDate(e.target.value)}
+                        className="bg-white border text-slate-800 border-indigo-300 rounded-lg py-0.5 px-2 text-xs focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-medium cursor-pointer"
+                      />
+                    )}
                   </div>
                 </div>
 
@@ -934,7 +1363,7 @@ export default function App() {
               <div id="filter-banner" className="bg-indigo-50/70 border-b border-indigo-100/50 px-6 py-3 flex flex-wrap items-center justify-between gap-2 text-xs text-indigo-950 font-semibold self-stretch">
                 <div className="flex items-center gap-1.5 font-sans">
                   <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></span>
-                  <span>កំពុងបង្ហាញ៖ <strong className="text-indigo-800">{filterDate}</strong></span>
+                  <span>កំពុងបង្ហាញ៖ <strong className="text-indigo-800">{getDisplayDateLabel()}</strong></span>
                   <span className="text-slate-300">|</span>
                   <span>វេនបង្រៀន៖ <strong className="text-indigo-800">{filterShift}</strong></span>
                 </div>
@@ -986,6 +1415,19 @@ export default function App() {
                         const checkInDate = new Date(rec.check_in_time);
                         const checkOutDate = rec.check_out_time ? new Date(rec.check_out_time) : null;
                         
+                        // Calculate elapsed time for active teachers
+                        const elapsedMs = checkOutDate ? 0 : (liveTime.getTime() - checkInDate.getTime());
+                        const elapsedHours = elapsedMs / (1000 * 60 * 60);
+                        const hasForgottenCheckOut = !checkOutDate && elapsedHours > 4;
+
+                        // Helper formatted duration
+                        const getElapsedTimeFormatted = (ms: number) => {
+                          const totalMinutes = Math.floor(ms / (1000 * 60));
+                          const hrs = Math.floor(totalMinutes / 60);
+                          const mins = totalMinutes % 60;
+                          return `${toKhmerNum(hrs)}ម៉ោង ${toKhmerNum(mins)}នាទី`;
+                        };
+                        
                         return (
                           <tr key={rec.id} className="hover:bg-slate-50/50 transition-colors">
                             
@@ -1028,7 +1470,7 @@ export default function App() {
                             </td>
 
                             {/* ម៉ោងចេញ (Check-Out) */}
-                            <td className="px-4 py-3 text-center whitespace-nowrap">
+                            <td className="px-4 py-3 text-center">
                               {checkOutDate ? (
                                 <>
                                   <div className="text-xs font-bold text-slate-800 font-mono">
@@ -1038,11 +1480,30 @@ export default function App() {
                                     {checkOutDate.toLocaleDateString('km-KH', { month: 'short', day: 'numeric' })}
                                   </div>
                                 </>
+                              ) : hasForgottenCheckOut ? (
+                                <div className="flex flex-col items-center gap-1">
+                                  <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-md border border-rose-200 animate-pulse shadow-xs">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-600 animate-ping"></span>
+                                    <span>កំពុងបង្រៀន {toKhmerNum('> ៤ម៉ោង')}</span>
+                                  </span>
+                                  <div className="text-[9px] text-rose-600 bg-rose-50/70 p-1.5 rounded border border-rose-150 max-w-[170px] whitespace-normal text-center leading-tight font-sans font-bold flex flex-col items-center gap-0.5">
+                                    <span className="flex items-center gap-1 text-rose-700 font-extrabold uppercase text-[7px] tracking-wider">
+                                      <AlertTriangle className="w-3 h-3 text-rose-600 animate-bounce" />
+                                      អាចភ្លេចកត់ម៉ោងចេញ
+                                    </span>
+                                    <span>ចូលបង្រៀនបាន៖ {getElapsedTimeFormatted(elapsedMs)} ហើយ</span>
+                                  </div>
+                                </div>
                               ) : (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200/50">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                                  កំពុងបង្រៀន (Active)
-                                </span>
+                                <div className="flex flex-col items-center gap-1">
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200/50 animate-pulse">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                                    កំពុងបង្រៀន (Active)
+                                  </span>
+                                  <span className="text-[9px] text-slate-400 font-medium">
+                                    រយៈពេល៖ {getElapsedTimeFormatted(elapsedMs)}
+                                  </span>
+                                </div>
                               )}
                             </td>
 

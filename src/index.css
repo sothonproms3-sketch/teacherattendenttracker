@@ -116,6 +116,38 @@
     width: auto !important;
     filter: contrast(120%) !important;
   }
+
+  /* Scale table fonts on print based on selections */
+  .khmer-size-11 table td, .khmer-size-11 table th { font-size: 11px !important; }
+  .khmer-size-12 table td, .khmer-size-12 table th { font-size: 12px !important; }
+  .khmer-size-13 table td, .khmer-size-13 table th { font-size: 13px !important; }
+  .khmer-size-14 table td, .khmer-size-14 table th { font-size: 14px !important; }
+  .khmer-size-15 table td, .khmer-size-15 table th { font-size: 15px !important; }
+  .khmer-size-16 table td, .khmer-size-16 table th { font-size: 16px !important; }
+  .khmer-size-18 table td, .khmer-size-18 table th { font-size: 18px !important; }
+}
+
+/* Precise Khmer OS Font Sizing rules */
+.khmer-size-11 table, .khmer-size-11 td, .khmer-size-11 th, .khmer-size-11 p, .khmer-size-11 select, .khmer-size-11 input, .khmer-size-11 button, .khmer-size-11 span, .khmer-size-11 label, .khmer-size-11 div:not(#app-header div) {
+  font-size: 11px !important;
+}
+.khmer-size-12 table, .khmer-size-12 td, .khmer-size-12 th, .khmer-size-12 p, .khmer-size-12 select, .khmer-size-12 input, .khmer-size-12 button, .khmer-size-12 span, .khmer-size-12 label, .khmer-size-12 div:not(#app-header div) {
+  font-size: 12px !important;
+}
+.khmer-size-13 table, .khmer-size-13 td, .khmer-size-13 th, .khmer-size-13 p, .khmer-size-13 select, .khmer-size-13 input, .khmer-size-13 button, .khmer-size-13 span, .khmer-size-13 label, .khmer-size-13 div:not(#app-header div) {
+  font-size: 13px !important;
+}
+.khmer-size-14 table, .khmer-size-14 td, .khmer-size-14 th, .khmer-size-14 p, .khmer-size-14 select, .khmer-size-14 input, .khmer-size-14 button, .khmer-size-14 span, .khmer-size-14 label, .khmer-size-14 div:not(#app-header div) {
+  font-size: 14px !important;
+}
+.khmer-size-15 table, .khmer-size-15 td, .khmer-size-15 th, .khmer-size-15 p, .khmer-size-15 select, .khmer-size-15 input, .khmer-size-15 button, .khmer-size-15 span, .khmer-size-15 label, .khmer-size-15 div:not(#app-header div) {
+  font-size: 15px !important;
+}
+.khmer-size-16 table, .khmer-size-16 td, .khmer-size-16 th, .khmer-size-16 p, .khmer-size-16 select, .khmer-size-16 input, .khmer-size-16 button, .khmer-size-16 span, .khmer-size-16 label, .khmer-size-16 div:not(#app-header div) {
+  font-size: 16px !important;
+}
+.khmer-size-18 table, .khmer-size-18 td, .khmer-size-18 th, .khmer-size-18 p, .khmer-size-18 select, .khmer-size-18 input, .khmer-size-18 button, .khmer-size-18 span, .khmer-size-18 label, .khmer-size-18 div:not(#app-header div) {
+  font-size: 18px !important;
 }
 
 
