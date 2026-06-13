@@ -342,7 +342,10 @@ export default function App() {
     }
 
     // Determine Mode: Check-In or Check-Out
-    if (attendanceMode === 'check-out') {
+    const isActivelyCheckedIn = !!selectedTeacherRecord;
+    const isCheckOutOperation = attendanceMode === 'check-out' || isActivelyCheckedIn;
+
+    if (isCheckOutOperation) {
       if (!selectedTeacherRecord) {
         setAttendanceError('រកមិនឃើញទិន្នន័យម៉ោងចូលរបស់គ្រូនេះទេ! ប្រហែលជាគាត់មិនទាន់បានចូលបង្រៀន ឬបានចេញរួចហើយ។ (No check-in record found or already checked out)');
         return;
@@ -363,10 +366,6 @@ export default function App() {
       setAttendanceSuccess(`បានកត់ត្រាម៉ោងចេញសម្រាប់ ${currentTeacher.teacher_name} ជោគជ័យ! (Checked out successfully)`);
     } else {
       // PERFORM CHECK-IN
-      if (selectedTeacherRecord) {
-        setAttendanceError(`លោកគ្រូ-អ្នកគ្រូកំពុងស្ថិតក្នុងថ្នាក់បង្រៀននៅឡើយ! សូមផ្លាស់ប្តូរទៅផ្នែក "កត់ត្រាម៉ោងចេញ (Check Out)" ប្រសិនបើចង់កត់ម៉ោងចេញ។`);
-        return;
-      }
 
       // Guard Check: Is already checked in today on the SAME shift?
       const alreadyCheckedInOnShift = records.some(rec => {
@@ -1128,7 +1127,7 @@ export default function App() {
                     onSave={(dataUrl) => setTempSignature(dataUrl)}
                     onClear={() => setTempSignature('')}
                     placeholder={
-                      attendanceMode === 'check-out' 
+                      (attendanceMode === 'check-out' || !!selectedTeacherRecord)
                         ? 'ចុះហត្ថលេខាដើម្បីកត់ត្រាម៉ោងចេញ (Sign to Check-out)' 
                         : 'ចុះហត្ថលេខាដើម្បីកត់ត្រាម៉ោងចូល (Sign to Check-in)'
                     }
@@ -1152,12 +1151,12 @@ export default function App() {
                   id="submit-log-btn"
                   type="submit"
                   className={`w-full py-3 px-4 rounded-xl font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 transform active:scale-[0.98] cursor-pointer ${
-                    attendanceMode === 'check-out'
+                    (attendanceMode === 'check-out' || !!selectedTeacherRecord)
                       ? 'bg-amber-600 hover:bg-amber-700 text-white hover:shadow-lg'
                       : 'bg-indigo-600 hover:bg-indigo-700 text-white hover:shadow-lg'
                   }`}
                 >
-                  {attendanceMode === 'check-out' ? (
+                  {(attendanceMode === 'check-out' || !!selectedTeacherRecord) ? (
                     <>
                       <LogOut className="w-5 h-5" />
                       កត់ត្រាម៉ោងចេញឥឡូវនេះ (Check Out Now)
