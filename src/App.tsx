@@ -60,7 +60,8 @@ const getMockRecords = (teachers: Teacher[]): AttendanceRecord[] => {
       shift: 'ព្រឹក (Morning)',
       check_in_time: timeStr(7, 5),
       check_out_time: timeStr(11, 2),
-      signature: mockSig
+      signature: mockSig,
+      signature_out: mockSig
     },
     {
       id: 'REC-102',
@@ -70,7 +71,8 @@ const getMockRecords = (teachers: Teacher[]): AttendanceRecord[] => {
       shift: 'រសៀល (Afternoon)',
       check_in_time: timeStr(13, 0),
       check_out_time: null, // Active
-      signature: mockSig
+      signature: mockSig,
+      signature_out: null
     },
     {
       id: 'REC-103',
@@ -80,7 +82,8 @@ const getMockRecords = (teachers: Teacher[]): AttendanceRecord[] => {
       shift: 'ព្រឹក (Morning)',
       check_in_time: timeStr(7, 12),
       check_out_time: timeStr(11, 0),
-      signature: mockSig
+      signature: mockSig,
+      signature_out: mockSig
     }
   ];
 };
@@ -246,6 +249,7 @@ export default function App() {
   const [teacherSuccessMsg, setTeacherSuccessMsg] = useState('');
 
   // Attendance logging states
+  const [attendanceMode, setAttendanceMode] = useState<'check-in' | 'check-out'>('check-in');
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
   const [selectedShift, setSelectedShift] = useState('ព្រឹក (Morning)');
   const [tempSignature, setTempSignature] = useState('');
@@ -338,14 +342,18 @@ export default function App() {
     }
 
     // Determine Mode: Check-In or Check-Out
-    if (selectedTeacherRecord) {
+    if (attendanceMode === 'check-out') {
+      if (!selectedTeacherRecord) {
+        setAttendanceError('រកមិនឃើញទិន្នន័យម៉ោងចូលរបស់គ្រូនេះទេ! ប្រហែលជាគាត់មិនទាន់បានចូលបង្រៀន ឬបានចេញរួចហើយ។ (No check-in record found or already checked out)');
+        return;
+      }
       // PERFORM CHECK-OUT
       const updatedRecords = records.map(rec => {
         if (rec.id === selectedTeacherRecord.id) {
           return {
             ...rec,
             check_out_time: new Date().toISOString(),
-            signature: tempSignature // update with sign-out signature or keep existing
+            signature_out: tempSignature // save with separate sign-out signature
           };
         }
         return rec;
@@ -355,6 +363,11 @@ export default function App() {
       setAttendanceSuccess(`បានកត់ត្រាម៉ោងចេញសម្រាប់ ${currentTeacher.teacher_name} ជោគជ័យ! (Checked out successfully)`);
     } else {
       // PERFORM CHECK-IN
+      if (selectedTeacherRecord) {
+        setAttendanceError(`លោកគ្រូ-អ្នកគ្រូកំពុងស្ថិតក្នុងថ្នាក់បង្រៀននៅឡើយ! សូមផ្លាស់ប្តូរទៅផ្នែក "កត់ត្រាម៉ោងចេញ (Check Out)" ប្រសិនបើចង់កត់ម៉ោងចេញ។`);
+        return;
+      }
+
       // Guard Check: Is already checked in today on the SAME shift?
       const alreadyCheckedInOnShift = records.some(rec => {
         if (rec.teacher_id === selectedTeacherId && rec.shift === selectedShift) {
@@ -561,7 +574,8 @@ export default function App() {
               <th>វេនបង្រៀន (Shift)</th>
               <th>ម៉ោងចូល (Check-In)</th>
               <th>ម៉ោងចេញ (Check-Out)</th>
-              <th>ហត្ថលេខា (Signature)</th>
+              <th>ហត្ថលេខាចូល (Sign-In)</th>
+              <th>ហត្ថលេខាចេញ (Sign-Out)</th>
             </tr>
           </thead>
           <tbody>
@@ -570,7 +584,8 @@ export default function App() {
     filteredRecords.forEach((rec, index) => {
       const checkInLocal = new Date(rec.check_in_time).toLocaleString('km-KH');
       const checkOutLocal = rec.check_out_time ? new Date(rec.check_out_time).toLocaleString('km-KH') : 'កំពុងបង្រៀន (Active)';
-      const sigImg = rec.signature ? `<img src="${rec.signature}" width="80" height="28" style="vertical-align: middle; object-fit: contain;" />` : 'គ្មានហត្ថលេខា (No)';
+      const sigImgIn = rec.signature ? `<img src="${rec.signature}" width="80" height="28" style="vertical-align: middle; object-fit: contain;" />` : 'គ្មានហត្ថលេខា (No)';
+      const sigImgOut = rec.signature_out ? `<img src="${rec.signature_out}" width="80" height="28" style="vertical-align: middle; object-fit: contain;" />` : (rec.check_out_time ? 'គ្មានហត្ថលេខា (No Check-out)' : 'មិនទាន់ចេញ (Active)');
       excelTemplate += `
         <tr>
           <td>${index + 1}</td>
@@ -580,7 +595,8 @@ export default function App() {
           <td>${rec.shift}</td>
           <td>${checkInLocal}</td>
           <td>${checkOutLocal}</td>
-          <td style="text-align: center;">${sigImg}</td>
+          <td style="text-align: center;">${sigImgIn}</td>
+          <td style="text-align: center;">${sigImgOut}</td>
         </tr>
       `;
     });
@@ -687,12 +703,14 @@ export default function App() {
           <thead>
             <tr>
               <th style="width: 5%;">ល.រ</th>
-              <th style="width: 13%;">លេខកូដគ្រូ</th>
-              <th style="width: 25%;">ឈ្មោះលោកគ្រូ-អ្នកគ្រូ</th>
-              <th style="width: 20%;">ដេប៉ាតឺម៉ង់</th>
-              <th style="width: 12%;">វេនបង្រៀន</th>
-              <th style="width: 13%;">ម៉ោងចូល</th>
-              <th style="width: 12%;">ហត្ថលេខា</th>
+              <th style="width: 10%;">លេខកូដគ្រូ</th>
+              <th style="width: 18%;">ឈ្មោះលោកគ្រូ-អ្នកគ្រូ</th>
+              <th style="width: 15%;">ដេប៉ាតឺម៉ង់</th>
+              <th style="width: 10%;">វេនបង្រៀន</th>
+              <th style="width: 11%;">ម៉ោងចូល</th>
+              <th style="width: 11%;">ម៉ោងចេញ</th>
+              <th style="width: 10%;">ហត្ថលេខាចូល</th>
+              <th style="width: 10%;">ហត្ថលេខាចេញ</th>
             </tr>
           </thead>
           <tbody>
@@ -700,7 +718,9 @@ export default function App() {
 
     filteredRecords.forEach((rec, index) => {
       const checkInLocal = new Date(rec.check_in_time).toLocaleString('km-KH');
-      const sigImg = rec.signature ? `<img src="${rec.signature}" width="80" height="28" style="vertical-align: middle; object-fit: contain;" />` : 'គ្មានហត្ថលេខា';
+      const checkOutLocal = rec.check_out_time ? new Date(rec.check_out_time).toLocaleString('km-KH') : 'កំពុងបង្រៀន (Active)';
+      const sigImgIn = rec.signature ? `<img src="${rec.signature}" width="80" height="28" style="vertical-align: middle; object-fit: contain;" />` : 'គ្មានហត្ថលេខា';
+      const sigImgOut = rec.signature_out ? `<img src="${rec.signature_out}" width="80" height="28" style="vertical-align: middle; object-fit: contain;" />` : (rec.check_out_time ? 'គ្មាន' : 'កំពុងបង្រៀន');
       wordTemplate += `
         <tr>
           <td>${index + 1}</td>
@@ -709,7 +729,9 @@ export default function App() {
           <td>${rec.department}</td>
           <td>${rec.shift}</td>
           <td>${checkInLocal}</td>
-          <td style="text-align: center;">${sigImg}</td>
+          <td>${checkOutLocal}</td>
+          <td style="text-align: center;">${sigImgIn}</td>
+          <td style="text-align: center;">${sigImgOut}</td>
         </tr>
       `;
     });
@@ -741,7 +763,9 @@ export default function App() {
       shift: rec.shift,
       check_in_time: rec.check_in_time,
       check_out_time: rec.check_out_time || null,
-      signature_data_url: rec.signature || null
+      signature_in_data_url: rec.signature || null,
+      signature_out_data_url: rec.signature_out || null,
+      signature_data_url: rec.signature || null // backward compatibility fallback
     }));
     const dataStr = JSON.stringify(cleanRecords, null, 2);
     const blob = new Blob([dataStr], { type: 'application/json;charset=utf-8;' });
@@ -752,6 +776,33 @@ export default function App() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleBulkCheckOut = () => {
+    const targetActiveRecords = filteredRecords.filter(rec => rec.check_out_time === null);
+    
+    if (targetActiveRecords.length === 0) {
+      alert('មិនមានគ្រូកំពុងបង្រៀន (សកម្ម) ក្នុងបញ្ជីតម្រងបច្ចុប្បន្ននោះទេ! (No active or non-checked-out teachers found in the current filtered list!)');
+      return;
+    }
+
+    const confirmMessage = `តើលោកអ្នកពិតជាចង់កត់ត្រាម៉ោងចេញរួមគ្នា (Bulk Check-Out) សម្រាប់លោកគ្រូ-អ្នកគ្រូទាំង ${targetActiveRecords.length} នាក់មែនទេ? (Are you sure you want to bulk check out all ${targetActiveRecords.length} active teachers?)`;
+    
+    if (window.confirm(confirmMessage)) {
+      const nowStr = new Date().toISOString();
+      const updatedRecords = records.map(rec => {
+        const isMatched = targetActiveRecords.some(target => target.id === rec.id);
+        if (isMatched) {
+          return {
+            ...rec,
+            check_out_time: nowStr
+          };
+        }
+        return rec;
+      });
+      setRecords(updatedRecords);
+      alert(`បានកត់ត្រាម៉ោងចេញរួមគ្នាសម្រាប់លោកគ្រូ-អ្នកគ្រូទាំង ${targetActiveRecords.length} នាក់ដោយជោគជ័យ! (Successfully checked out ${targetActiveRecords.length} teachers in bulk!)`);
+    }
   };
 
   return (
@@ -907,12 +958,55 @@ export default function App() {
                 </p>
               </div>
 
+              {/* Mode Selector Tabs */}
+              <div className="flex border-b border-slate-100 bg-slate-50/50 p-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAttendanceMode('check-in');
+                    setSelectedTeacherId('');
+                    setAttendanceError('');
+                    setAttendanceSuccess('');
+                  }}
+                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    attendanceMode === 'check-in'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-950'
+                  }`}
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  <span>កត់ត្រាម៉ោងចូល (Check In)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAttendanceMode('check-out');
+                    setSelectedTeacherId('');
+                    setAttendanceError('');
+                    setAttendanceSuccess('');
+                  }}
+                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    attendanceMode === 'check-out'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-amber-600'
+                  }`}
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>កត់ត្រាម៉ោងចេញ (Check Out)</span>
+                </button>
+              </div>
+
               <form onSubmit={handleAttendanceSubmit} className="p-6 flex flex-col gap-5">
                 
                 {/* 1. SELECT TEACHER */}
                 <div id="field-teacher-select" className="flex flex-col gap-1.5">
                   <label htmlFor="teacher-dropdown" className="text-xs font-bold text-slate-700 flex justify-between">
-                    <span>លោកគ្រូ-អ្នកគ្រូ (Select Teacher) *</span>
+                    <span>
+                      {attendanceMode === 'check-out' 
+                        ? 'គ្រូដែលត្រូវកត់ម៉ោងចេញ (Select Teacher to Check Out) *' 
+                        : 'លោកគ្រូ-អ្នកគ្រូ (Select Teacher) *'
+                      }
+                    </span>
                     <span className="text-[10px] text-slate-400 font-mono">ID: TCH-XXX</span>
                   </label>
                   <select
@@ -925,14 +1019,40 @@ export default function App() {
                     }}
                     className="w-full bg-slate-50 border border-slate-350 hover:border-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg py-2 px-3 text-sm transition-colors text-slate-800 font-sans"
                   >
-                    <option value="">-- សូមជ្រើសរើសគ្រូបង្រៀន (Select Teacher) --</option>
-                    {teachers.map(tch => (
-                      <option key={tch.teacher_id} value={tch.teacher_id}>
-                        {tch.teacher_name} ({tch.department})
-                      </option>
-                    ))}
+                    <option value="">
+                      {attendanceMode === 'check-out'
+                        ? '-- សូមជ្រើសរើសគ្រូដែលកំពុងបង្រៀន (Select Active Teacher) --'
+                        : '-- សូមជ្រើសរើសគ្រូបង្រៀន (Select Teacher) --'
+                      }
+                    </option>
+                    {teachers
+                      .filter(tch => {
+                        if (attendanceMode === 'check-out') {
+                          return records.some(r => r.teacher_id === tch.teacher_id && r.check_out_time === null);
+                        }
+                        return true;
+                      })
+                      .map(tch => (
+                        <option key={tch.teacher_id} value={tch.teacher_id}>
+                          {tch.teacher_name} ({tch.department})
+                        </option>
+                      ))
+                    }
                   </select>
                 </div>
+
+                {/* Empty Active Teachers Warning for check-out mode */}
+                {attendanceMode === 'check-out' && records.filter(r => r.check_out_time === null).length === 0 && (
+                  <div className="p-4 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs flex flex-col gap-1.5">
+                    <p className="font-bold flex items-center gap-1.5">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 animate-pulse" />
+                      មិនទាន់មានគ្រូបង្រៀនកំពុងសកម្មនៅឡើយទេ!
+                    </p>
+                    <p className="text-[11px] text-slate-600 leading-relaxed">
+                      មិនទាន់មានលោកគ្រូ-អ្នកគ្រូណាម្នាក់បានកត់ត្រាម៉ោងចូល (Check In) ហើយមិនទាន់ចេញនោះទេ។ សូមចុះឈ្មោះម៉ោងចូលសិន ឬជ្រើសរើសគ្រូផ្សេង។
+                    </p>
+                  </div>
+                )}
 
                 {/* DYNAMIC ATTENDANCE STATUS BADGE FOR SELECTED TEACHER */}
                 {selectedTeacherId && (
@@ -962,7 +1082,7 @@ export default function App() {
                 )}
 
                 {/* 2. CHOOSE SHIFT (Only visible if doing Check-In) */}
-                {!selectedTeacherRecord && (
+                {attendanceMode === 'check-in' && !selectedTeacherRecord && (
                   <div id="field-shift-select" className="flex flex-col gap-1.5">
                     <label id="shift-label" className="text-xs font-bold text-slate-700">
                       វេនបង្រៀន (Teaching Shift) *
@@ -1008,7 +1128,7 @@ export default function App() {
                     onSave={(dataUrl) => setTempSignature(dataUrl)}
                     onClear={() => setTempSignature('')}
                     placeholder={
-                      selectedTeacherRecord 
+                      attendanceMode === 'check-out' 
                         ? 'ចុះហត្ថលេខាដើម្បីកត់ត្រាម៉ោងចេញ (Sign to Check-out)' 
                         : 'ចុះហត្ថលេខាដើម្បីកត់ត្រាម៉ោងចូល (Sign to Check-in)'
                     }
@@ -1032,12 +1152,12 @@ export default function App() {
                   id="submit-log-btn"
                   type="submit"
                   className={`w-full py-3 px-4 rounded-xl font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 transform active:scale-[0.98] cursor-pointer ${
-                    selectedTeacherRecord
+                    attendanceMode === 'check-out'
                       ? 'bg-amber-600 hover:bg-amber-700 text-white hover:shadow-lg'
                       : 'bg-indigo-600 hover:bg-indigo-700 text-white hover:shadow-lg'
                   }`}
                 >
-                  {selectedTeacherRecord ? (
+                  {attendanceMode === 'check-out' ? (
                     <>
                       <LogOut className="w-5 h-5" />
                       កត់ត្រាម៉ោងចេញឥឡូវនេះ (Check Out Now)
@@ -1261,6 +1381,16 @@ export default function App() {
                     <span>PDF</span>
                   </button>
                   <button
+                    id="bulk-checkout-btn"
+                    type="button"
+                    onClick={handleBulkCheckOut}
+                    className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all cursor-pointer shadow-xs hover:shadow-md"
+                    title="Check out all currently active (not checked-out) teachers in the filtered list with a single click"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>ចាកចេញរួមគ្នា (Bulk Out)</span>
+                  </button>
+                  <button
                     id="print-btn"
                     type="button"
                     onClick={handlePrint}
@@ -1393,7 +1523,10 @@ export default function App() {
                         ម៉ោងចេញ (Check-Out)
                       </th>
                       <th scope="col" className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider">
-                        ហត្ថលេខា (Signature)
+                        ហត្ថលេខាចូល (Sign-In)
+                      </th>
+                      <th scope="col" className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider">
+                        ហត្ថលេខាចេញ (Sign-Out)
                       </th>
                       <th scope="col" className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">
                         សកម្មភាព (Actions)
@@ -1403,7 +1536,7 @@ export default function App() {
                   <tbody className="bg-white divide-y divide-slate-100">
                     {filteredRecords.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-6 py-10 text-center text-slate-400 text-xs">
+                        <td colSpan={8} className="px-6 py-10 text-center text-slate-400 text-xs">
                           <div className="flex flex-col items-center gap-2">
                             <Clock className="w-8 h-8 text-slate-300" />
                             <span>មិនទាន់មានការចុះឈ្មោះវត្តមានឡើយ ឬរកមិនឃើញទិន្នន័យ (No records match the filter)</span>
@@ -1507,20 +1640,41 @@ export default function App() {
                               )}
                             </td>
 
-                            {/* ហត្ថលេខា (Signature Base64 Preview) */}
+                            {/* ហត្ថលេខាចូល (Check-In Signature) */}
                             <td className="px-4 py-3 text-center whitespace-nowrap">
                               {rec.signature ? (
                                 <div className="group relative inline-block">
                                   <img
                                     src={rec.signature}
-                                    alt="ហត្ថលេខា"
+                                    alt="ហត្ថលេខាចូល"
                                     className="h-7 w-20 object-contain mx-auto border border-slate-200 bg-white rounded shadow-xs cursor-zoom-in hover:scale-110 active:scale-150 transition-transform"
                                     referrerPolicy="no-referrer"
                                   />
-                                  <span className="sr-only">Signed</span>
+                                  <span className="sr-only font-sans">Check-in Signed</span>
                                 </div>
                               ) : (
-                                <span className="text-[10px] text-red-500">គ្មានហត្ថលេខា</span>
+                                <span className="text-[10px] text-red-500 font-sans">គ្មានហត្ថលេខា</span>
+                              )}
+                            </td>
+
+                            {/* ហត្ថលេខាចេញ (Check-Out Signature) */}
+                            <td className="px-4 py-3 text-center whitespace-nowrap">
+                              {rec.signature_out ? (
+                                <div className="group relative inline-block">
+                                  <img
+                                    src={rec.signature_out}
+                                    alt="ហត្ថលេខាចេញ"
+                                    className="h-7 w-20 object-contain mx-auto border border-slate-200 bg-white rounded shadow-xs cursor-zoom-in hover:scale-110 active:scale-150 transition-transform"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                  <span className="sr-only font-sans">Check-out Signed</span>
+                                </div>
+                              ) : rec.check_out_time ? (
+                                <span className="text-[10px] text-slate-400 font-sans">គ្មានហត្ថលេខាចេញ</span>
+                              ) : (
+                                <span className="text-[10px] text-amber-600 bg-amber-55 px-2 py-0.5 rounded border border-amber-100 animate-pulse font-sans font-bold">
+                                  កំពុងបង្រៀន
+                                </span>
                               )}
                             </td>
 

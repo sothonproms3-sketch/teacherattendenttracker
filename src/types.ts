@@ -20,4 +20,5 @@ export interface AttendanceRecord {
   check_in_time: string; // ISO String
   check_out_time: string | null; // ISO String or null
   signature: string; // Base64 image data of the signature
+  signature_out?: string | null; // Base64 image data of the check out signature
 }
